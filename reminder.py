@@ -11,13 +11,17 @@ year                = today.strftime("%Y")
 timeOfDay           = int(today.strftime("%H"))
 minDayOfWeek        = 1 # Monday
 maxDayOfWeek        = 5 # Friday
-daysOfWeek          = maxDayOfWeek - minDayOfWeek # range of max - min
+daysOfWeek          = maxDayOfWeek - minDayOfWeek + 1 # range of max - min
 # ++++++++++++++++++++++++++++++++++++++++++++
 # --------------------------------------------
 # Set these variables to alter behavior
 # --------------------------------------------
-# Filename to save history
+# Filename to save upcoming reminders
 reminderFile = 'reminderFile'
+# Filename to save history
+reminderHistory = 'reminderHistory'
+# Log filename
+reminderLog = 'reminder.log'
 # Maximum times to be reminded in a week
 upperLimit = 2
 # Minimum days between reminders
@@ -32,14 +36,17 @@ latestHour = 21
 
 
 # BEGIN :: function to overwrite file
-def writeToFile(filename = reminderFile, reminders = None):
-    if reminders != None:
-        with open(reminderFile, 'w+') as f:
-            try:
-                for date in reminders:
-                    f.write(date + "\n")
-            except ValueError as e:
-                pass
+def writeToFile(filename = reminderFile, list = None, permissions = 'w+'):
+    if list != None:
+        try:
+            with open(filename, permissions) as f:
+                try:
+                    for date in list:
+                        f.write(date + "\n")
+                except ValueError as e:
+                    pass
+        except FileNotFoundError as e:
+            raise
 # END :: function to overwrite file
 
 
@@ -49,39 +56,38 @@ reminders = []
 
 
 # BEGIN :: Read file and save stored dates
-with open(reminderFile, 'r') as f:
-    # try:
-        reminders.append(datetime.strptime(f.read(), preferredDateFormat))
-    # except ValueError as e:
-    #     print("Error code #0")
-print("# in file:", len(reminders))
+try:
+    with open(reminderFile, 'r') as f:
+        for line in f:
+            reminders.append(datetime.strptime(line.strip(), preferredDateFormat))
+except FileNotFoundError as e:
+    pass    # First time running or dates were reset
 # END :: Read file and save stored dates
 
 
 
 # BEGIN :: Check if the reminder should go off
 if len(reminders):
-    # FIXME: Get previous reminder, not first in list - or just save previous first
-    lastReminder = today - reminders[0]
-    print("Last reminder:", lastReminder)
+    # Get first reminder
+    currentReminder = reminders[0]
+    oldReminders = []
 
-    # Is weekday after 5
-    itsTime = False
-    if dayOfWeek > 0 or dayOfWeek < 6:
-        if timeOfDay >= 17 and lastReminder > datetime.timedelta(hours=-12):
-            itsTime = True
-
-    if itsTime:
-        # remove this from reminders
+    if today > currentReminder:
+        # Trigger Notification
+        # log any notification errors
         print("It's time")
+        # remove this from reminders
+        currentReminder = str(reminders.pop(0))
+        oldReminders.append(currentReminder)
+        writeToFile(reminderHistory, oldReminders, "a+")
+
 # END :: Check if the reminder should go off
 
 
 
 # BEGIN :: Create new dates to save to file
-# Commented IF logic causing loop
 while len(reminders) < upperLimit:
-    randomDate = random.randint(minDayOfWeek, maxDayOfWeek)
+    randomDate = random.randint(minDaysBetween, 6)
     possibleDate = True
 
     if len(reminders) >= 0 and len(reminders) <= upperLimit:
@@ -90,7 +96,9 @@ while len(reminders) < upperLimit:
             if (
                 randomDate == date or
                 randomDate == date + 1 or
-                randomDate + 1 == date
+                randomDate + 1 == date or
+                randomDate == date + 2 or
+                randomDate + 2 == date
                 ):
                 possibleDate = False
 
