@@ -75,7 +75,7 @@ if len(reminders):
     if today > currentReminder:
         # Trigger Notification
         # log any notification errors
-        print("It's time")
+        hass.bus.fire('input_boolean.turn_on', {"entity_id": "input_boolean.send_notification"})
         # remove this from reminders
         currentReminder = str(reminders.pop(0))
         oldReminders.append(currentReminder)
@@ -114,6 +114,5 @@ while len(reminders) < upperLimit:
 reminders = [str(reminder) for reminder in reminders]
 reminders.sort()
 
-print("Collected Dates:", reminders)
 writeToFile(reminderFile, reminders)
 # END :: Create new dates to save to file
