@@ -1,14 +1,16 @@
 from datetime import datetime
 import random
+import secrets
+import paho.mqtt.client as mqtt # https://pypi.org/project/paho-mqtt/
+
+
 
 # ++++++++++++++++++++++++++++++++++++++++++++
 preferredDateFormat = "%Y-%m-%d %H:%M:%S"
 today               = datetime.now()
-dayOfWeek           = int(today.strftime("%w"))
 dayOfMonth          = today.strftime("%d")
 month               = today.strftime("%m")
 year                = today.strftime("%Y")
-timeOfDay           = int(today.strftime("%H"))
 minDayOfWeek        = 1 # Monday
 maxDayOfWeek        = 5 # Friday
 daysOfWeek          = maxDayOfWeek - minDayOfWeek + 1 # range of max - min
@@ -35,23 +37,61 @@ latestHour = 21
 
 
 
+# The callback for when the client receives a CONNACK response from the server.
+def on_connect(client, userdata, flags, rc):
+    # print("Connected with result code "+str(rc))
+
+    # Subscribing in on_connect() means that if we lose the connection and
+    # reconnect then subscriptions will be renewed.
+    client.subscribe([(userdata[0], 0)])
+    client.publish(userdata[0], userdata[1], 0, True)
+
+# Called when a message has been received on a topic that the client subscribes to .
+def on_message(client, userdata, msg):
+    # print("Message received:", msg.topic+" "+str(msg.payload, 'utf-8'))
+    if str(msg.topic) == str(userdata[0]) and str(msg.payload, 'utf-8') == str(userdata[1]):
+        # print("Received correct message!")
+        client.disconnect()
+
+def send_notification():
+    # print("Send Notification")
+    # If multiple Topics, notify a random one
+    if len(secrets.clientTopics) > 1:
+        topicInd = random.randint(0, len(secrets.clientTopics) - 1)
+    else:
+        topicInd = secrets.clientTopics[0]
+    try:
+        client = mqtt.Client('weekly-random-reminder', False)
+        client.username_pw_set(secrets.clientUserName, secrets.clientPass)
+        client.user_data_set([secrets.clientTopics[topicInd], secrets.clientPayload])
+        client.on_connect   = on_connect
+        client.on_message   = on_message
+
+        client.connect(secrets.clientIP, secrets.clientPort, 60)
+        client.loop_forever()
+    except ConnectionRefusedError as e:
+        errors.append(today+":\tConnection refused. Is the MQTT broker online?")
+
+
+
 # BEGIN :: function to overwrite file
 def writeToFile(filename = reminderFile, list = None, permissions = 'w+'):
     if list != None:
         try:
             with open(filename, permissions) as f:
                 try:
-                    for date in list:
-                        f.write(date + "\n")
+                    for item in list:
+                        f.write(item + "\n")
                 except ValueError as e:
-                    pass
+                    errors.append(today + ":\tError ##:\tlist is not of type list.")
         except FileNotFoundError as e:
-            raise
+            errors.append(today + ":\tError ##:\tFileNotFoundError. Does " + filename + " exist?")
 # END :: function to overwrite file
 
 
 
 reminders = []
+errors = []
 
 
 
@@ -61,7 +101,7 @@ try:
         for line in f:
             reminders.append(datetime.strptime(line.strip(), preferredDateFormat))
 except FileNotFoundError as e:
-    pass    # First time running or dates were reset
+    errors.append(today + ":\tError ##:\tFileNotFoundError. Assuming first run.")    # First time running or dates were reset
 # END :: Read file and save stored dates
 
 
@@ -75,7 +115,7 @@ if len(reminders):
     if today > currentReminder:
         # Trigger Notification
         # log any notification errors
-        hass.bus.fire('input_boolean.turn_on', {"entity_id": "input_boolean.send_notification"})
+        send_notification()
         # remove this from reminders
         currentReminder = str(reminders.pop(0))
         oldReminders.append(currentReminder)
@@ -113,6 +153,7 @@ while len(reminders) < upperLimit:
         reminders.append(saveTime)
 reminders = [str(reminder) for reminder in reminders]
 reminders.sort()
-
 writeToFile(reminderFile, reminders)
+if len(errors):
+    writeToFile(reminderLog, errors)
 # END :: Create new dates to save to file
