@@ -70,7 +70,7 @@ def send_notification():
         client.connect(secrets.clientIP, secrets.clientPort, 60)
         client.loop_forever()
     except ConnectionRefusedError as e:
-        errors.append(today+":\tConnection refused. Is the MQTT broker online?")
+        errors.append(str(today)+":\tConnection refused. Is the MQTT broker online?")
 
 
 
@@ -83,9 +83,9 @@ def writeToFile(filename = reminderFile, list = None, permissions = 'w+'):
                     for item in list:
                         f.write(item + "\n")
                 except ValueError as e:
-                    errors.append(today + ":\tError ##:\tlist is not of type list.")
+                    errors.append(str(today) + ":\tError ##:\tlist is not of type list.")
         except FileNotFoundError as e:
-            errors.append(today + ":\tError ##:\tFileNotFoundError. Does " + filename + " exist?")
+            errors.append(str(today) + ":\tError ##:\tFileNotFoundError. Does " + filename + " exist?")
 # END :: function to overwrite file
 
 
@@ -101,7 +101,7 @@ try:
         for line in f:
             reminders.append(datetime.strptime(line.strip(), preferredDateFormat))
 except FileNotFoundError as e:
-    errors.append(today + ":\tError ##:\tFileNotFoundError. Assuming first run.")    # First time running or dates were reset
+    errors.append(str(today) + ":\tError ##:\tFileNotFoundError. Assuming first run.")    # First time running or dates were reset
 # END :: Read file and save stored dates
 
 
