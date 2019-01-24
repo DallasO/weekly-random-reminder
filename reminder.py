@@ -126,34 +126,35 @@ if len(reminders):
 
 
 # BEGIN :: Create new dates to save to file
-while len(reminders) < upperLimit:
-    randomDate = random.randint(minDaysBetween, 6)
-    possibleDate = True
+if len(reminders) < upperLimit:
+    while len(reminders) < upperLimit:
+        randomDate = random.randint(minDaysBetween, 6)
+        possibleDate = True
 
-    if len(reminders) >= 0 and len(reminders) <= upperLimit:
-        dates = [int(date.strftime("%w")) for date in reminders]
-        for date in dates:
-            if (
-                randomDate == date or
-                randomDate == date + 1 or
-                randomDate + 1 == date or
-                randomDate == date + 2 or
-                randomDate + 2 == date
-                ):
-                possibleDate = False
+        if len(reminders) >= 0 and len(reminders) <= upperLimit:
+            dates = [int(date.strftime("%w")) for date in reminders]
+            for date in dates:
+                if (
+                    randomDate == date or
+                    randomDate == date + 1 or
+                    randomDate + 1 == date or
+                    randomDate == date + 2 or
+                    randomDate + 2 == date
+                    ):
+                    possibleDate = False
 
-    if possibleDate == True:
-        randomHour      = str(random.randint(earliestHour, latestHour))
-        randomMinute    = str(random.randint(0, 59))
-        saveDay         = str(int(dayOfMonth) + randomDate)
-        saveTime        = datetime.strptime(
-                year + "-" + month + "-" + saveDay + " " + randomHour + ":" + randomMinute + ":00",
-                preferredDateFormat
-            )
-        reminders.append(saveTime)
-reminders = [str(reminder) for reminder in reminders]
-reminders.sort()
-writeToFile(reminderFile, reminders)
+        if possibleDate == True:
+            randomHour      = str(random.randint(earliestHour, latestHour))
+            randomMinute    = str(random.randint(0, 59))
+            saveDay         = str(int(dayOfMonth) + randomDate)
+            saveTime        = datetime.strptime(
+                    year + "-" + month + "-" + saveDay + " " + randomHour + ":" + randomMinute + ":00",
+                    preferredDateFormat
+                )
+            reminders.append(saveTime)
+    reminders = [str(reminder) for reminder in reminders]
+    reminders.sort()
+    writeToFile(reminderFile, reminders)
 if len(errors):
     writeToFile(reminderLog, errors)
 # END :: Create new dates to save to file
