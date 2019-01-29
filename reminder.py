@@ -1,4 +1,4 @@
-from datetime import datetime
+import datetime
 import random
 import secrets
 import paho.mqtt.client as mqtt # https://pypi.org/project/paho-mqtt/
@@ -7,13 +7,13 @@ import paho.mqtt.client as mqtt # https://pypi.org/project/paho-mqtt/
 
 # ++++++++++++++++++++++++++++++++++++++++++++
 preferredDateFormat = "%Y-%m-%d %H:%M:%S"
-today               = datetime.now()
-dayOfMonth          = today.strftime("%d")
-month               = today.strftime("%m")
-year                = today.strftime("%Y")
+today               = datetime.datetime.now()
+year                = int(today.strftime("%Y"))
+month               = int(today.strftime("%m"))
+dayOfMonth          = int(today.strftime("%d"))
 minDayOfWeek        = 1 # Monday
 maxDayOfWeek        = 5 # Friday
-daysOfWeek          = maxDayOfWeek - minDayOfWeek + 1 # range of max - min
+anyDay              = maxDayOfWeek + minDayOfWeek == 0
 # ++++++++++++++++++++++++++++++++++++++++++++
 # --------------------------------------------
 # Set these variables to alter behavior
@@ -27,12 +27,11 @@ reminderLog = 'reminder.log'
 # Maximum times to be reminded in a week
 upperLimit = 2
 # Minimum days between reminders
-# minDaysBetween = int(daysOfWeek / upperLimit)
-minDaysBetween = 1
+minDaysBetween = 2
 # Earliest time to send reminder (24hr)
 earliestHour = 17
 # latest time to send reminder (24hr)
-latestHour = 21
+latestHour = 22
 # ++++++++++++++++++++++++++++++++++++++++++++
 
 
@@ -59,7 +58,7 @@ def send_notification():
     if len(secrets.clientTopics) > 1:
         topicInd = random.randint(0, len(secrets.clientTopics) - 1)
     else:
-        topicInd = secrets.clientTopics[0]
+        topicInd = 0
     try:
         client = mqtt.Client('weekly-random-reminder', False)
         client.username_pw_set(secrets.clientUserName, secrets.clientPass)
@@ -83,9 +82,9 @@ def writeToFile(filename = reminderFile, list = None, permissions = 'w+'):
                     for item in list:
                         f.write(item + "\n")
                 except ValueError as e:
-                    errors.append(str(today) + ":\tError ##:\tlist is not of type list.")
+                    errors.append(str(today) + ":\tError ##0:\tlist is not of type list.")
         except FileNotFoundError as e:
-            errors.append(str(today) + ":\tError ##:\tFileNotFoundError. Does " + filename + " exist?")
+            errors.append(str(today) + ":\tError ##1:\tFileNotFoundError. Does " + filename + " exist?")
 # END :: function to overwrite file
 
 
@@ -99,9 +98,9 @@ errors = []
 try:
     with open(reminderFile, 'r') as f:
         for line in f:
-            reminders.append(datetime.strptime(line.strip(), preferredDateFormat))
+            reminders.append(datetime.datetime.strptime(line.strip(), preferredDateFormat))
 except FileNotFoundError as e:
-    errors.append(str(today) + ":\tError ##:\tFileNotFoundError. Assuming first run.")    # First time running or dates were reset
+    errors.append(str(today) + ":\tError ##2:\tFileNotFoundError. Assuming first run.")    # First time running or dates were reset
 # END :: Read file and save stored dates
 
 
@@ -127,31 +126,29 @@ if len(reminders):
 
 # BEGIN :: Create new dates to save to file
 if len(reminders) < upperLimit:
+    infinityGauntlet = 0
     while len(reminders) < upperLimit:
-        randomDate = random.randint(minDaysBetween, 6)
+        infinityGauntlet += 1
+        randomDate = random.randint(minDaysBetween, 7 * minDaysBetween / upperLimit)
         possibleDate = True
 
-        if len(reminders) >= 0 and len(reminders) <= upperLimit:
-            dates = [int(date.strftime("%w")) for date in reminders]
-            for date in dates:
-                if (
-                    randomDate == date or
-                    randomDate == date + 1 or
-                    randomDate + 1 == date or
-                    randomDate == date + 2 or
-                    randomDate + 2 == date
-                    ):
-                    possibleDate = False
+        dates = reminders[:] or []
+        dates.append(datetime.datetime(year, month, dayOfMonth))
+
+        testDay = max(dates) + datetime.timedelta(days=randomDate) # New Date at midnight
+        testDayOfWeek = int(testDay.strftime("%w"))
+        if not anyDay and (testDayOfWeek < minDayOfWeek or testDayOfWeek > maxDayOfWeek):
+            possibleDate = False
+
+        if infinityGauntlet > 3:
+            possibleDate = True
+            errors.append(str(today) + ":\tError ##3:\tGauntletError. Blocked a run to infinity.")    # First time running or dates were reset
 
         if possibleDate == True:
-            randomHour      = str(random.randint(earliestHour, latestHour))
-            randomMinute    = str(random.randint(0, 59))
-            saveDay         = str(int(dayOfMonth) + randomDate)
-            saveTime        = datetime.strptime(
-                    year + "-" + month + "-" + saveDay + " " + randomHour + ":" + randomMinute + ":00",
-                    preferredDateFormat
-                )
-            reminders.append(saveTime)
+            randomHour   = random.randint(earliestHour, latestHour)
+            randomMinute = random.randint(0, 59)
+            saveDay      = testDay + datetime.timedelta(hours=randomHour, minutes=randomMinute)
+            reminders.append(saveDay)
     reminders = [str(reminder) for reminder in reminders]
     reminders.sort()
     writeToFile(reminderFile, reminders)
