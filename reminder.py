@@ -1,13 +1,21 @@
-import datetime
-import random
-import secrets
+#Python imports
+import datetime, random, math
+
+
+
+# Custom pip imports
 import paho.mqtt.client as mqtt # https://pypi.org/project/paho-mqtt/
+
+
+
+# Application imports
+import secrets
 
 
 
 # ++++++++++++++++++++++++++++++++++++++++++++
 preferredDateFormat = "%Y-%m-%d %H:%M:%S"
-today               = datetime.datetime.now()
+today               = datetime.datetime.replace(datetime.datetime.now(), microsecond=0)
 year                = int(today.strftime("%Y"))
 month               = int(today.strftime("%m"))
 dayOfMonth          = int(today.strftime("%d"))
@@ -28,9 +36,8 @@ reminderLog = 'reminder.log'
 upperLimit = 2
 # Minimum days between reminders
 minDaysBetween = 2
-# Earliest time to send reminder (24hr)
+# Limit times to send reminder (24hr)
 earliestHour = 17
-# latest time to send reminder (24hr)
 latestHour = 22
 # ++++++++++++++++++++++++++++++++++++++++++++
 
@@ -63,10 +70,10 @@ def send_notification():
         client = mqtt.Client('weekly-random-reminder', False)
         client.username_pw_set(secrets.clientUserName, secrets.clientPass)
         client.user_data_set([secrets.clientTopics[topicInd], secrets.clientPayload])
-        client.on_connect   = on_connect
-        client.on_message   = on_message
+        client.on_connect = on_connect
+        client.on_message = on_message
 
-        client.connect(secrets.clientIP, secrets.clientPort, 60)
+        client.connect(secrets.clientIP, secrets.clientPort)
         client.loop_forever()
     except ConnectionRefusedError as e:
         errors.append(str(today)+":\tConnection refused. Is the MQTT broker online?")
@@ -85,6 +92,8 @@ def writeToFile(filename = reminderFile, list = None, permissions = 'w+'):
                     errors.append(str(today) + ":\tError ##0:\tlist is not of type list.")
         except FileNotFoundError as e:
             errors.append(str(today) + ":\tError ##1:\tFileNotFoundError. Does " + filename + " exist?")
+    else:
+        errors.append(str(today) + ":\tError ##1:\tValueError. Tried to write nothing to file")
 # END :: function to overwrite file
 
 
@@ -97,10 +106,18 @@ errors = []
 # BEGIN :: Read file and save stored dates
 try:
     with open(reminderFile, 'r') as f:
-        for line in f:
-            reminders.append(datetime.datetime.strptime(line.strip(), preferredDateFormat))
+        for line in [l.strip() for l in f]:
+            try:
+                reminders.append(datetime.datetime.strptime(line, preferredDateFormat))
+            except ValueError as e:
+                # Catch invalid dates
+                dateFileError = str(today) + ":\tError ##2:\tValueError. "
+                if len(line) > 0:
+                    errors.append("%sInvalid date in %s - %s" % (dateFileError, reminderFile, line))
+                else:
+                    errors.append("%sInvalid date in %s." % (dateFileError, reminderFile))
 except FileNotFoundError as e:
-    errors.append(str(today) + ":\tError ##2:\tFileNotFoundError. Assuming first run.")    # First time running or dates were reset
+    errors.append(str(today) + ":\tError ##3:\tFileNotFoundError. Assuming first run.")
 # END :: Read file and save stored dates
 
 
@@ -129,29 +146,32 @@ if len(reminders) < upperLimit:
     infinityGauntlet = 0
     while len(reminders) < upperLimit:
         infinityGauntlet += 1
-        randomDate = random.randint(minDaysBetween, 7 * minDaysBetween / upperLimit)
+        randomDate = random.randint(minDaysBetween, max(minDaysBetween, math.ceil(7 / upperLimit)))
         possibleDate = True
 
-        dates = reminders[:] or []
+        dates = [datetime.datetime.replace(reminder, hour=0, minute=0, second=0) for reminder in reminders] or []
         dates.append(datetime.datetime(year, month, dayOfMonth))
 
         testDay = max(dates) + datetime.timedelta(days=randomDate) # New Date at midnight
         testDayOfWeek = int(testDay.strftime("%w"))
+
         if not anyDay and (testDayOfWeek < minDayOfWeek or testDayOfWeek > maxDayOfWeek):
             possibleDate = False
 
         if infinityGauntlet > 3:
             possibleDate = True
-            errors.append(str(today) + ":\tError ##3:\tGauntletError. Blocked a run to infinity.")    # First time running or dates were reset
+            errors.append(str(today) + ":\tError ##4:\tGauntletError. Blocked a run to infinity.")
 
         if possibleDate == True:
             randomHour   = random.randint(earliestHour, latestHour)
             randomMinute = random.randint(0, 59)
             saveDay      = testDay + datetime.timedelta(hours=randomHour, minutes=randomMinute)
             reminders.append(saveDay)
+
     reminders = [str(reminder) for reminder in reminders]
     reminders.sort()
     writeToFile(reminderFile, reminders)
+
 if len(errors):
     writeToFile(reminderLog, errors)
 # END :: Create new dates to save to file
