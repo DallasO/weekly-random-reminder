@@ -4,7 +4,8 @@ import datetime, random, math
 
 
 # Application imports
-import secrets
+import config
+import func
 
 
 
@@ -38,24 +39,6 @@ latestHour = 22
 
 
 
-# BEGIN :: function to overwrite file
-def writeToFile(filename = reminderFile, list = None, permissions = 'w+'):
-    if list != None:
-        try:
-            with open(filename, permissions) as f:
-                try:
-                    for item in list:
-                        f.write(str(item) + "\n")
-                except ValueError as e:
-                    errors.append(str(today) + ":\tError ##0:\tlist is not of type list.")
-        except FileNotFoundError as e:
-            errors.append(str(today) + ":\tError ##1:\tFileNotFoundError. Does " + filename + " exist?")
-    else:
-        errors.append(str(today) + ":\tError ##1:\tValueError. Tried to write nothing to file")
-# END :: function to overwrite file
-
-
-
 reminders = []
 errors = []
 
@@ -85,12 +68,19 @@ if len(reminders):
 
     if today > min(reminders):
         # Trigger notification
-        from mqtt import send_notification
-        send_notification()
+        if config.mqtt:
+            from mqtt import send_notification
+            send_notification()
+        elif config.webhook:
+            from webhook import send_notification
+            send_notification()
+        else:
+            print("Please configure")
+
         # Remember removed date(s)
         oldReminders = [rem for rem in reminders if rem <= today]
         reminders    = [rem for rem in reminders if rem > today]
-        writeToFile(reminderHistory, oldReminders, "a+")
+        func.writeToFile(reminderHistory, oldReminders, "a+")
 # END :: Check if the reminder should go off
 
 
@@ -123,8 +113,8 @@ if len(reminders) < upperLimit:
             reminders.append(saveDay)
 
     reminders.sort()
-    writeToFile(reminderFile, reminders)
+    func.writeToFile(reminderFile, reminders)
 
 if len(errors):
-    writeToFile(reminderLog, errors)
+    func.writeToFile(reminderLog, errors)
 # END :: Create new dates to save to file
